@@ -1,139 +1,190 @@
+
 import logging
 import os
+import tempfile
+
 import yt_dlp
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 from dotenv import load_dotenv
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
+
+# Load environment variables from .env
 load_dotenv()
 
-# ലോഗിങ് സെറ്റ് ചെയ്യുക
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+# Logging configuration
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
 logger = logging.getLogger(__name__)
 
-# /start കമാൻഡ്
 
+# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_message = (
-        "🎬 <b>JIOHOTSTAR DOWNLOADER</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-        "👋 Hey there! Welcome!\n\n"
-        "Your entertainment assistant is ready. 🚀\n\n"
-        "📥 <b>HOW TO USE</b>\n\n"
-        "1️⃣ Copy your JioHotstar video link.\n"
-        "2️⃣ Send the link here.\n"
-        "3️⃣ Choose your preferred video quality.\n"
-        "4️⃣ Tap Submit / Download.\n"
-        "5️⃣ Receive your video here!\n\n"
-        "🎥 <b>AVAILABLE QUALITIES</b>\n"
-        "• 1080p – Full HD\n"
-        "• 720p – HD\n"
-        "• 480p – SD\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "⚡ Simple • Fast • Easy to use\n\n"
-        "💡 <b>Ready to get started?</b>\n"
-        "Send your JioHotstar link below! 👇"
-    )
-
     await update.message.reply_text(
-        welcome_message,
-        parse_mode="HTML"
+        "👋 Welcome to JioHotstar Downloader Bot!\n"
+        "Send any JioHotstar video link to download."
     )
 
 
-# JioHotstar ലിങ്ക് പരിശോധിക്കുന്ന ഹാൻഡ്‌ലർ
+# Handle JioHotstar links
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    
+    text = update.message.text.strip()
+
     if "hotstar.com" in text:
-        context.user_data['hotstar_url'] = text
-        
-        # ക്വാളിറ്റി സെലക്ട് ചെയ്യാനുള്ള ബട്ടണുകൾ
+        context.user_data["hotstar_url"] = text
+
         keyboard = [
             [InlineKeyboardButton("1080p (Full HD)", callback_data="q_1080p")],
             [InlineKeyboardButton("720p (HD)", callback_data="q_720p")],
-            [InlineKeyboardButton("480p", callback_data="q_480p")]
+            [InlineKeyboardButton("480p", callback_data="q_480p")],
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text("📥 Select video quality for download:", reply_markup=reply_markup)
-    else:
-        await update.message.reply_text("Please send a valid JioHotstar link containing 'hotstar.com'.")
 
-# ബട്ടൺ ക്ലിക്ക് ചെയ്യുമ്പോൾ ഡൗൺലോഡിങ് പ്രോസസ്സ് ആരംഭിക്കുന്നത്
+        await update.message.reply_text(
+            "📥 Select video quality for download:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+    else:
+        await update.message.reply_text(
+            "Please send a valid JioHotstar link containing 'hotstar.com'."
+        )
+
+
+# Handle quality selection and downloads
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
+
     if query.data.startswith("q_"):
         quality = query.data.split("_")[1]
-        context.user_data['quality'] = quality
-        
+        context.user_data["quality"] = quality
+
         keyboard = [
-            [InlineKeyboardButton("Submit / Download 🚀", callback_data="start_download")]
+            [
+                InlineKeyboardButton(
+                    "Submit / Download 🚀",
+                    callback_data="start_download",
+                )
+            ]
         ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(text=f"Selected Quality: {quality}\nClick Submit to start downloading:", reply_markup=reply_markup)
-        
+
+        await query.edit_message_text(
+            text=f"Selected Quality: {quality}\n"
+                 "Click Submit to start downloading:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+        )
+
     elif query.data == "start_download":
-        await query.edit_message_text(text="⏳ Downloading video from JioHotstar... Please wait.")
-        
-        url = context.user_data.get('hotstar_url')
-        quality = context.user_data.get('quality', '720p')
-        height = quality.replace('p', '')
-        
-        # Environment Variable-ൽ നിന്ന് ഹോസ്റ്റാർ കുക്കികൾ എടുക്കുന്നു
-        hotstar_cookies = os.getenv("HOTSTAR_COOKIES")
-        
-        # yt-dlp സെറ്റിങ്സ് (ഇതിൽ പ്രോക്സിയും കുക്കിയും ചേർത്തിട്ടുണ്ട്)
-        ydl_opts = {
-            'format': f'best[height<={height}]',
-            'outtmpl': 'downloads/%(title)s.%(ext)s',
-            'proxy': 'http://103.66.12.225:8080',  # ഇന്ത്യൻ പ്രോക്സി അഡ്രസ്
-        }
-        
-        # കുക്കികൾ ഉണ്ടെങ്കിൽ അത് ഫയലായി സേവ് ചെയ്ത് yt-dlp-ലേക്ക് നൽകുന്നു
-        if hotstar_cookies:
-            cookie_file_path = "cookies.txt"
-            with open(cookie_file_path, "w", encoding="utf-8") as f:
-                f.write(hotstar_cookies)
-            ydl_opts['cookiefile'] = cookie_file_path
+        await query.edit_message_text(
+            text="⏳ Downloading video from JioHotstar... Please wait."
+        )
+
+        url = context.user_data.get("hotstar_url")
+        quality = context.user_data.get("quality", "720p")
+
+        if not url:
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="❌ Please send a JioHotstar link first.",
+            )
+            return
+
+        height = quality.replace("p", "")
+        cookie_file_path = None
 
         try:
-            os.makedirs('downloads', exist_ok=True)
-            
+            os.makedirs("downloads", exist_ok=True)
+
+            # yt-dlp settings - direct connection, no proxy
+            ydl_opts = {
+                "format": f"best[height<={height}]/best",
+                "outtmpl": "downloads/%(title)s.%(ext)s",
+                "noplaylist": True,
+            }
+
+            # Read Hotstar cookies from .env
+            hotstar_cookies = os.getenv("HOTSTAR_COOKIES")
+
+            if hotstar_cookies:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    encoding="utf-8",
+                    suffix=".txt",
+                    delete=False,
+                ) as cookie_file:
+                    cookie_file.write(hotstar_cookies)
+                    cookie_file_path = cookie_file.name
+
+                ydl_opts["cookiefile"] = cookie_file_path
+
+            # Download video
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
-            
-            await context.bot.send_message(chat_id=query.message.chat_id, text="✅ Download completed! Uploading to Telegram...")
-            
-            # ടെലിഗ്രാമിലേക്ക് വീഡിയോ അയക്കുന്നു
-            with open(filename, 'rb') as video_file:
-                await context.bot.send_video(chat_id=query.message.chat_id, video=video_file)
-            
-            # ഫയൽ ഡിലീറ്റ് ചെയ്ത് സ്റ്റോറേജ് ക്ലീൻ ചെയ്യുന്നു
+
+            if not os.path.exists(filename):
+                raise FileNotFoundError("Downloaded video file was not found.")
+
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="✅ Download completed! Uploading to Telegram...",
+            )
+
+            # Upload video to Telegram
+            with open(filename, "rb") as video_file:
+                await context.bot.send_video(
+                    chat_id=query.message.chat_id,
+                    video=video_file,
+                )
+
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="🎉 Video sent successfully!",
+            )
+
+            # Delete downloaded video
             os.remove(filename)
-            if os.path.exists("cookies.txt"):
-                os.remove("cookies.txt")
-            
+
         except Exception as e:
-            logger.error(f"Error: {e}")
-            await context.bot.send_message(chat_id=query.message.chat_id, text=f"❌ Download failed: {str(e)}")
+            logger.exception("Download error")
+
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=f"❌ Download failed: {str(e)}",
+            )
+
+        finally:
+            # Always delete temporary cookie file
+            if cookie_file_path and os.path.exists(cookie_file_path):
+                os.remove(cookie_file_path)
+
 
 def main():
     TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-    
+
     if not TOKEN:
-        raise ValueError("❌ TELEGRAM_BOT_TOKEN is missing in Environment Variables!")
-    
+        raise ValueError(
+            "TELEGRAM_BOT_TOKEN is missing from environment variables!"
+        )
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+    )
     app.add_handler(CallbackQueryHandler(button_handler))
 
     print("JioHotstar Downloader Bot is running...")
     app.run_polling()
 
+
 if __name__ == "__main__":
     main()
-        

@@ -11,8 +11,34 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # /start കമാൻഡ്
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Welcome to JioHotstar Downloader Bot!\nSend any JioHotstar video link to download.")
+    welcome_message = (
+        "🎬 <b>JIOHOTSTAR DOWNLOADER</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "👋 Hey there! Welcome!\n\n"
+        "Your entertainment assistant is ready. 🚀\n\n"
+        "📥 <b>HOW TO USE</b>\n\n"
+        "1️⃣ Copy your JioHotstar video link.\n"
+        "2️⃣ Send the link here.\n"
+        "3️⃣ Choose your preferred video quality.\n"
+        "4️⃣ Tap Submit / Download.\n"
+        "5️⃣ Receive your video here!\n\n"
+        "🎥 <b>AVAILABLE QUALITIES</b>\n"
+        "• 1080p – Full HD\n"
+        "• 720p – HD\n"
+        "• 480p – SD\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "⚡ Simple • Fast • Easy to use\n\n"
+        "💡 <b>Ready to get started?</b>\n"
+        "Send your JioHotstar link below! 👇"
+    )
+
+    await update.message.reply_text(
+        welcome_message,
+        parse_mode="HTML"
+    )
+
 
 # JioHotstar ലിങ്ക് പരിശോധിക്കുന്ന ഹാൻഡ്‌ലർ
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -3,6 +3,8 @@ import os
 import yt_dlp
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
+from dotenv import load_dotenv
+load_dotenv()
 
 # ലോഗിങ് സെറ്റ് ചെയ്യുക
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
